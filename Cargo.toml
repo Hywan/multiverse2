@@ -4,7 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+argh = "0.1.13"
+chrono = { version = "0.4.40", default-features = false, features = ["alloc", "clock", "iana-time-zone", "now", "std"] }
 crossterm = { version = "0.28.1", features = ["event-stream"] }
 futures = "0.3.31"
+itertools = "0.14.0"
+matrix-sdk = { path = "../matrix-rust-sdk/crates/matrix-sdk" }
+matrix-sdk-sqlite = { path = "../matrix-rust-sdk/crates/matrix-sdk-sqlite" }
+matrix-sdk-ui= { path = "../matrix-rust-sdk/crates/matrix-sdk-ui" }
 ratatui = "0.29.0"
+rpassword = "7.3.1"
+textwrap = "0.16.2"
+thiserror = "2.0.12"
 tokio = { version = "1.44.1", features = ["macros", "rt-multi-thread", "sync", "rt"] }
+tracing-subscriber = "0.3.19"
+tui-logger = { version = "0.17.0", features = ["crossterm", "tracing-subscriber", "tracing-support"] }
+tui-textarea = "0.7.0"

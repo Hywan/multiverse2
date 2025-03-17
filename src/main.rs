@@ -1,109 +1,140 @@
-use futures::{FutureExt as _, StreamExt as _};
-use std::io;
-use tokio::runtime::{self, Builder, Runtime};
-use tokio::sync::mpsc::{Receiver, Sender, channel};
-use tokio::task::JoinHandle;
-use tokio::task::spawn;
+mod app;
+mod bin;
+mod block;
+mod input;
+mod mode;
+mod room;
+mod scrollbar;
+mod task_ext;
+mod textarea;
+mod timeline;
 
-use crossterm::event::{
-    self, Event as CrossTermEvent, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyEventState,
-    KeyModifiers,
+use std::io::{self, Write};
+
+use matrix_sdk::{
+    AuthSession, Client, ClientBuildError, SqliteCryptoStore, SqliteEventCacheStore,
+    SqliteStateStore,
+    authentication::matrix::MatrixSession,
+    encryption::{BackupDownloadStrategy, EncryptionSettings},
+    ruma::exports::serde_json,
+    store::StoreConfig,
 };
-use ratatui::{DefaultTerminal, Frame, buffer::Buffer, layout::Rect, text::Line, widgets::Widget};
+use matrix_sdk_sqlite::OpenStoreError;
+use textarea::TextArea;
 
-#[derive(Debug)]
-pub struct App {
-    exit: bool,
-    event_sender: Sender<Event>,
-    event_receiver: Receiver<Event>,
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+
+    #[error(transparent)]
+    ClientError(#[from] ClientBuildError),
+
+    #[error(transparent)]
+    OpenStore(#[from] OpenStoreError),
+
+    #[error(transparent)]
+    Session(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Matrix(#[from] matrix_sdk::Error),
+
+    #[error(transparent)]
+    MatrixSyncService(#[from] matrix_sdk_ui::sync_service::Error),
 }
 
-impl App {
-    pub fn new() -> Self {
-        let (event_sender, event_receiver) = channel(128);
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    logger();
 
-        Self {
-            exit: false,
-            event_sender,
-            event_receiver,
-        }
-    }
+    let options = argh::from_env();
+    let client = client(&options).await?;
+    let client = session(client, &options).await?;
 
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        let runtime = Builder::new_multi_thread()
-            .thread_name("multiverse2")
-            .enable_all()
-            .build()?;
+    let event_cache = client.event_cache();
+    event_cache.subscribe().unwrap();
+    event_cache.enable_storage().unwrap();
 
-        let _inputs_task = runtime.spawn({
-            let event_sender = self.event_sender.clone();
+    app(client).await?;
 
-            async move {
-                handle_inputs(event_sender).await.unwrap();
-            }
+    Ok(())
+}
+
+fn logger() {
+    use tracing_subscriber::prelude::*;
+
+    tracing_subscriber::registry().with(tui_logger::TuiTracingSubscriberLayer).init();
+    tui_logger::init_logger(tui_logger::LevelFilter::Trace).unwrap();
+}
+
+async fn client(options: &bin::Options) -> Result<Client, Error> {
+    let bin::Options { server_name, session_path } = options;
+
+    let client_builder = Client::builder()
+        .store_config(
+            StoreConfig::new("multiverse".to_owned())
+                .crypto_store(SqliteCryptoStore::open(session_path.join("crypto"), None).await?)
+                .state_store(SqliteStateStore::open(session_path.join("state"), None).await?)
+                .event_cache_store(
+                    SqliteEventCacheStore::open(session_path.join("cache"), None).await?,
+                ),
+        )
+        .server_name_or_homeserver_url(&server_name)
+        .with_encryption_settings(EncryptionSettings {
+            auto_enable_cross_signing: true,
+            backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,
+            auto_enable_backups: true,
         });
 
-        runtime.block_on(async move {
-            while !self.exit {
-                terminal.draw(|frame| self.draw(frame))?;
-                self.handle_events().await?;
+    Ok(client_builder.build().await?)
+}
+
+async fn session(client: Client, options: &bin::Options) -> Result<Client, Error> {
+    let session_path = options.session_path.join("session.json");
+
+    if let Ok(serialized) = std::fs::read_to_string(&session_path) {
+        let session: MatrixSession = serde_json::from_str(&serialized)?;
+        client.restore_session(session).await?;
+    } else {
+        println!("Logging in with username and password…");
+
+        loop {
+            print!("\nUsername: ");
+            io::stdout().flush().expect("Unable to write to stdout");
+            let mut username = String::new();
+            io::stdin().read_line(&mut username).expect("Unable to read user input");
+            username = username.trim().to_owned();
+
+            let password = rpassword::prompt_password("Password: ")?;
+
+            match client.matrix_auth().login_username(&username, password.trim()).await {
+                Ok(_) => {
+                    println!("Logged in as {username}");
+                    break;
+                }
+                Err(error) => {
+                    println!("Error logging in: {error}");
+                    println!("Please try again\n");
+                }
             }
+        }
 
-            Ok(())
-        })
-    }
+        // Immediately save the session to disk.
+        if let Some(session) = client.session() {
+            let AuthSession::Matrix(session) = session else { panic!("unexpected oidc session") };
+            let serialized = serde_json::to_string(&session)?;
+            std::fs::write(session_path, serialized)?;
 
-    fn draw(&self, frame: &mut Frame) {
-        frame.render_widget(self, frame.area());
-    }
-
-    async fn handle_events(&mut self) -> io::Result<()> {
-        match self.event_receiver.recv().await.unwrap() {
-            Event::KeyPress(key_event) => self.handle_key_event(key_event),
-        };
-
-        Ok(())
-    }
-
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            _ => {}
+            println!("Session saved");
         }
     }
 
-    fn exit(&mut self) {
-        self.exit = true;
-    }
+    Ok(client)
 }
 
-impl Widget for &App {
-    fn render(self, area: Rect, buffer: &mut Buffer) {
-        Line::from("Hello").render(area, buffer);
-    }
-}
-
-#[derive(Debug)]
-enum Event {
-    KeyPress(KeyEvent),
-}
-
-async fn handle_inputs(sender: Sender<Event>) -> io::Result<()> {
-    let mut event_reader = EventStream::new();
-
-    loop {
-        match event_reader.next().fuse().await {
-            Some(Ok(CrossTermEvent::Key(key_event))) if key_event.kind == KeyEventKind::Press => {
-                let _ = sender.send(Event::KeyPress(key_event)).await;
-            }
-            _ => {}
-        }
-    }
-}
-
-fn main() -> io::Result<()> {
+async fn app(client: Client) -> Result<(), Error> {
     let mut terminal = ratatui::init();
-    let app_result = App::new().run(&mut terminal);
+    let app_result = app::App::new(client).await?.run(&mut terminal).await;
 
     ratatui::restore();
 
