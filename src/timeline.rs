@@ -21,7 +21,7 @@ use matrix_sdk_ui::{
     eyeball_im::{Vector, VectorDiff},
     room_list_service,
     timeline::{
-        Profile, TimelineDetails, TimelineItem, TimelineItemContent, TimelineItemKind,
+        MsgLikeKind, Profile, TimelineDetails, TimelineItem, TimelineItemContent, TimelineItemKind,
         VirtualTimelineItem,
     },
 };
@@ -415,21 +415,34 @@ impl Model {
                         let non_message_style = Style::default().fg(Color::Indexed(247)).italic();
 
                         match content {
-                            TimelineItemContent::Message(message) => {
-                                spans.extend(
-                                    textwrap::wrap(message.body(), area.width as usize - 2)
-                                        .into_iter()
-                                        .map(Span::raw),
-                                );
-                            }
-                            TimelineItemContent::UnableToDecrypt(_) => {
-                                spans.push(Span::styled(
-                                    "<unable to decrypt>",
-                                    non_message_style.fg(Color::Red),
-                                ));
-                            }
-                            TimelineItemContent::RedactedMessage => {
-                                spans.push(Span::styled("<redacted>", non_message_style));
+                            TimelineItemContent::MsgLike(message_like) => {
+                                match &message_like.kind {
+                                    MsgLikeKind::Message(message) => {
+                                        spans.extend(
+                                            textwrap::wrap(message.body(), area.width as usize - 2)
+                                                .into_iter()
+                                                .map(Span::raw),
+                                        );
+                                    }
+                                    MsgLikeKind::UnableToDecrypt(_) => {
+                                        spans.push(Span::styled(
+                                            "<unable to decrypt>",
+                                            non_message_style.fg(Color::Red),
+                                        ));
+                                    }
+                                    MsgLikeKind::Redacted => {
+                                        spans.push(Span::styled("<redacted>", non_message_style));
+                                    }
+                                    MsgLikeKind::Poll(_) => {
+                                        spans.push(Span::styled("<poll>", non_message_style));
+                                    }
+                                    _ => {
+                                        spans.push(Span::styled(
+                                            "<unsupported messagge-like event>",
+                                            non_message_style,
+                                        ));
+                                    }
+                                }
                             }
                             TimelineItemContent::MembershipChange(membership_change) => {
                                 spans.push(Span::styled(
@@ -455,9 +468,6 @@ impl Model {
                             TimelineItemContent::CallNotify => {
                                 spans.push(Span::styled("<call notify>", non_message_style));
                             }
-                            TimelineItemContent::Poll(_) => {
-                                spans.push(Span::styled("<poll>", non_message_style));
-                            }
                             TimelineItemContent::FailedToParseMessageLike { .. } => {
                                 spans.push(Span::styled(
                                     "<failed to parse message-like>",
@@ -469,9 +479,6 @@ impl Model {
                                     "<failed to parse state>",
                                     non_message_style.fg(Color::Red),
                                 ));
-                            }
-                            _ => {
-                                spans.push(Span::styled("<unsupported event>", non_message_style));
                             }
                         }
                     }
@@ -563,6 +570,15 @@ impl Model {
                     text
                 }
                 VirtualTimelineItem::ReadMarker => return None,
+                VirtualTimelineItem::TimelineStart => {
+                    let mut text = Text::default().centered();
+
+                    text.push_span("───── ");
+                    text.push_span("Beginning of the room");
+                    text.push_span(" ─────");
+
+                    text
+                }
             },
         }))
     }
