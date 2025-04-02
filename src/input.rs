@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
 use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind};
-use futures::{FutureExt, Stream, StreamExt, pin_mut};
-use matrix_sdk_ui::{
-    eyeball_im::VectorDiff, room_list_service, sync_service, timeline as sdk_timeline,
-};
+use futures::{FutureExt, StreamExt};
+use matrix_sdk_ui::{eyeball_im::VectorDiff, room_list_service, timeline as sdk_timeline};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{app, mode, room, timeline};
@@ -17,7 +15,7 @@ pub enum Input {
     TimelineUpdate(Vec<VectorDiff<Arc<sdk_timeline::TimelineItem>>>),
 }
 
-pub async fn handle_inputs_task(input_sender: Sender<Input>) {
+pub async fn handle_terminal_events_task(input_sender: Sender<Input>) {
     let mut event_reader = EventStream::new();
 
     loop {
@@ -35,17 +33,6 @@ pub async fn handle_inputs_task(input_sender: Sender<Input>) {
             },
             _ => {}
         }
-    }
-}
-
-pub async fn handle_sync_service_states_task(
-    input_sender: Sender<Input>,
-    state_receiver: impl Stream<Item = sync_service::State>,
-) {
-    pin_mut!(state_receiver);
-
-    while let Some(_state) = state_receiver.next().await {
-        let _ = input_sender.send(Input::Redraw).await;
     }
 }
 

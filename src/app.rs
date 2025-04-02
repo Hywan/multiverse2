@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use futures::{Stream, StreamExt, pin_mut};
 use matrix_sdk::Client;
 use matrix_sdk_ui::{
     room_list_service,
@@ -236,10 +237,11 @@ impl App {
     }
 
     pub async fn run(mut self, terminal: &mut DefaultTerminal) -> Result<(), Error> {
-        // Read inputs in a task, and exchange them via a channel.
-        let _inputs_task =
-            spawn(input::handle_inputs_task(self.model.input_sender.clone())).abort_on_drop();
-        let _sync_service_task = spawn(input::handle_sync_service_states_task(
+        let _terminal_events_task =
+            spawn(input::handle_terminal_events_task(self.model.input_sender.clone()))
+                .abort_on_drop();
+
+        let _sync_service_task = spawn(handle_sync_service_states_task(
             self.model.input_sender.clone(),
             self.model.sync_service.state(),
         ))
@@ -263,5 +265,16 @@ impl App {
         self.model.sync_service.stop().await;
 
         Ok(())
+    }
+}
+
+async fn handle_sync_service_states_task(
+    input_sender: Sender<Input>,
+    state_receiver: impl Stream<Item = sync_service::State>,
+) {
+    pin_mut!(state_receiver);
+
+    while let Some(_state) = state_receiver.next().await {
+        let _ = input_sender.send(Input::Redraw).await;
     }
 }
