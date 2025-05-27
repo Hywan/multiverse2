@@ -1,16 +1,10 @@
-use std::{
-    borrow::Cow,
-    cmp::min,
-    iter,
-    ops::{Deref, Not},
-    sync::Arc,
-};
+use std::{borrow::Cow, cmp::min, iter, ops::Not, sync::Arc};
 
 use chrono::{DateTime, Local};
 use futures::{StreamExt, pin_mut};
 use itertools::Itertools as _;
 use matrix_sdk::{
-    Client,
+    Client, Room,
     deserialized_responses::TimelineEvent,
     linked_chunk::{ChunkContent, ChunkIdentifier},
     locks::Mutex,
@@ -19,10 +13,9 @@ use matrix_sdk::{
 use matrix_sdk_ui::{
     Timeline,
     eyeball_im::{Vector, VectorDiff},
-    room_list_service,
     timeline::{
-        MsgLikeKind, Profile, TimelineDetails, TimelineItem, TimelineItemContent, TimelineItemKind,
-        VirtualTimelineItem,
+        MsgLikeKind, Profile, RoomExt, TimelineDetails, TimelineItem, TimelineItemContent,
+        TimelineItemKind, VirtualTimelineItem,
     },
 };
 use ratatui::{
@@ -82,9 +75,8 @@ pub struct Model {
 }
 
 impl Model {
-    pub async fn new(room: &room_list_service::Room, input_sender: Option<Sender<Input>>) -> Self {
-        let timeline =
-            Arc::new(room.default_room_timeline_builder().await.unwrap().build().await.unwrap());
+    pub async fn new(room: &Room, input_sender: Option<Sender<Input>>) -> Self {
+        let timeline = Arc::new(room.timeline_builder().build().await.unwrap());
         let client = room.client();
         let room_id = timeline.room().room_id().to_owned();
         let mut items = Vector::new();
@@ -498,11 +490,11 @@ impl Model {
                 if matches!(self.details, Details::None) {
                     let reactions = content.reactions();
 
-                    if reactions.is_empty().not() {
+                    if let Some(reactions) = reactions {
                         let mut line = Line::raw("");
                         let style = Style::default().bg(Color::Rgb(71, 79, 102));
 
-                        line.extend(reactions.deref().iter().map(|(reaction, senders)| {
+                        line.extend(reactions.iter().map(|(reaction, senders)| {
                             let number_of_senders = senders.len();
 
                             Span::styled(

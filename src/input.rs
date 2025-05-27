@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind};
 use futures::{FutureExt, StreamExt};
-use matrix_sdk_ui::{eyeball_im::VectorDiff, room_list_service, timeline as sdk_timeline};
+use matrix_sdk::Room;
+use matrix_sdk_ui::{eyeball_im::VectorDiff, timeline as sdk_timeline};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{app, mode, room, timeline};
@@ -11,7 +12,7 @@ use crate::{app, mode, room, timeline};
 pub enum Input {
     Redraw,
     KeyPress(KeyEvent),
-    RoomListUpdate(Vec<VectorDiff<room_list_service::Room>>),
+    RoomListUpdate(Vec<VectorDiff<Room>>),
     TimelineUpdate(Vec<VectorDiff<Arc<sdk_timeline::TimelineItem>>>),
 }
 

@@ -1,9 +1,11 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use matrix_sdk::ruma::{
-    api::client::receipt::create_receipt::v3::ReceiptType,
-    events::room::message::RoomMessageEventContent,
+use matrix_sdk::{
+    Room,
+    ruma::{
+        api::client::receipt::create_receipt::v3::ReceiptType,
+        events::room::message::RoomMessageEventContent,
+    },
 };
-use matrix_sdk_ui::room_list_service;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Margin, Rect},
@@ -24,13 +26,13 @@ pub enum Message {
 }
 
 pub struct Model {
-    room: room_list_service::Room,
+    room: Room,
     timeline: timeline::Model,
     message_textarea: TextArea,
 }
 
 impl Model {
-    pub async fn new(room: room_list_service::Room, input_sender: Sender<Input>) -> Self {
+    pub async fn new(room: Room, input_sender: Sender<Input>) -> Self {
         let timeline = timeline::Model::new(&room, Some(input_sender)).await;
 
         Self { room, timeline, message_textarea: TextArea::new_with_border() }
@@ -92,7 +94,8 @@ impl Model {
         Line::from(
             self.room
                 .cached_display_name()
-                .unwrap_or_else(|| self.room.id().as_str().to_owned())
+                .map(|display_name| display_name.to_string())
+                .unwrap_or_else(|| self.room.room_id().as_str().to_owned())
                 .set_style(Style::new().add_modifier(Modifier::BOLD)),
         )
         .centered()

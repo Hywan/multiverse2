@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
 use futures::{Stream, StreamExt, pin_mut};
-use matrix_sdk::Client;
-use matrix_sdk_ui::{
-    room_list_service,
-    sync_service::{self, SyncService},
-};
+use matrix_sdk::{Client, Room};
+use matrix_sdk_ui::sync_service::{self, SyncService};
 use ratatui::{
     DefaultTerminal,
     buffer::Buffer,
@@ -28,7 +25,7 @@ use crate::{
 
 pub enum Message {
     Quit,
-    OpenRoom(room_list_service::Room),
+    OpenRoom(Room),
     Room(room::Message),
     Mode(Mode),
     Space(mode::space::Message),
@@ -76,7 +73,7 @@ impl Model {
             Message::Quit => self.exit = true,
             Message::OpenRoom(room) => {
                 self.mode = Mode::None;
-                self.sync_service.room_list_service().subscribe_to_rooms(&[room.id()]);
+                self.sync_service.room_list_service().subscribe_to_rooms(&[room.room_id()]);
                 self.room = Some(room::Model::new(room, self.input_sender.clone()).await);
             }
             Message::Room(room_message) => {

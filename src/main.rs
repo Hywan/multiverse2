@@ -53,7 +53,6 @@ async fn main() -> Result<(), Error> {
 
     let event_cache = client.event_cache();
     event_cache.subscribe().unwrap();
-    event_cache.enable_storage().unwrap();
 
     app(client).await?;
 

@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use crossterm::event::KeyEvent;
 use futures::{StreamExt, pin_mut};
+use matrix_sdk::Room;
 use matrix_sdk_ui::{
     RoomListService,
     eyeball_im::{Vector, VectorDiff},
-    room_list_service::{self, RoomListDynamicEntriesController, filters},
+    room_list_service::{RoomListDynamicEntriesController, filters},
     sync_service::SyncService,
 };
 use ratatui::{
@@ -29,7 +30,7 @@ use crate::{
 #[derive(Debug)]
 pub enum Message {
     UpdateFilter(KeyEvent),
-    UpdateRoomList(Vec<VectorDiff<room_list_service::Room>>),
+    UpdateRoomList(Vec<VectorDiff<Room>>),
     MoveCursorUp,
     MoveCursorDown,
     Select,
@@ -38,7 +39,7 @@ pub enum Message {
 pub struct Model {
     room_list_controller: RoomListDynamicEntriesController,
     _room_list_updates_handle: AbortOnDrop<()>,
-    rooms: Vector<room_list_service::Room>,
+    rooms: Vector<Room>,
     list_state: ListState,
     search_textarea: TextArea,
     selected_room_timeline: Option<timeline::Model>,
@@ -163,7 +164,9 @@ impl Model {
         self.search_textarea.render(input_area.inner(Margin::new(1, 0)), buffer);
         StatefulWidget::render(
             List::new(self.rooms.iter().map(|room| {
-                room.cached_display_name().unwrap_or_else(|| room.id().as_str().to_owned())
+                room.cached_display_name()
+                    .map(|display_name| display_name.to_string())
+                    .unwrap_or_else(|| room.room_id().as_str().to_owned())
             }))
             .highlight_style(Style::new().bg(Color::DarkGray))
             .highlight_symbol(" > ")
