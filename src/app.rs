@@ -73,7 +73,7 @@ impl Model {
             Message::Quit => self.exit = true,
             Message::OpenRoom(room) => {
                 self.mode = Mode::None;
-                self.sync_service.room_list_service().subscribe_to_rooms(&[room.room_id()]);
+                self.sync_service.room_list_service().subscribe_to_rooms(&[room.room_id()]).await;
                 self.room = Some(room::Model::new(room, self.input_sender.clone()).await);
             }
             Message::Room(room_message) => {
