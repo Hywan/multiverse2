@@ -8,7 +8,7 @@ pub const PADDING: Padding = Padding::horizontal(1);
 pub const BORDER_STYLE: Style = Style::new().fg(Color::Indexed(111));
 pub const BORDER_TYPE: BorderType = BorderType::Rounded;
 
-pub fn block_with_title(title: &str) -> Block {
+pub fn block_with_title(title: &str) -> Block<'_> {
     Block::bordered()
         .border_style(BORDER_STYLE)
         .border_type(BorderType::Rounded)
