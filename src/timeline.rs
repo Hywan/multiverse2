@@ -153,6 +153,16 @@ impl Model {
                 let _ = self.timeline.paginate_backwards(20).await;
             }
             Message::ShowDetails(details) => {
+                if matches!(details, Details::LinkedChunk) {
+                    reload_linked_chunks(
+                        &mut self.linked_chunks,
+                        &self.client,
+                        &self.room_id,
+                        self.items.iter().find_map(|item| item.as_event()?.event_id()),
+                    )
+                    .await?;
+                }
+
                 if matches!(
                     (&self.details, &details),
                     (Details::None | Details::EventId, Details::LinkedChunk)
@@ -570,6 +580,21 @@ impl Model {
                     text.push_span("───── ");
                     text.push_span("Beginning of the room");
                     text.push_span(" ─────");
+
+                    text
+                }
+                VirtualTimelineItem::Gap { prev_token } => {
+                    let mut text = Text::default().centered();
+
+                    text.push_span("〜〜〜");
+                    text.push_span(format!(
+                        "Gap ({:?})",
+                        prev_token.as_ref().and_then(|t| t
+                            .as_str()
+                            .split_at_checked(10)
+                            .map(|(left, _right)| left))
+                    ));
+                    text.push_span("〜〜〜");
 
                     text
                 }
