@@ -55,7 +55,7 @@ impl Model {
                     .lock()
                     .await
                     .unwrap()
-                    .clear_all_rooms_chunks()
+                    .clear_all_linked_chunks()
                     .await
                     .unwrap();
                 app::Message::Mode(app::Mode::None)

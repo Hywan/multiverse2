@@ -6,7 +6,7 @@ use itertools::Itertools as _;
 use matrix_sdk::{
     Client, Room,
     deserialized_responses::TimelineEvent,
-    linked_chunk::{ChunkContent, ChunkIdentifier},
+    linked_chunk::{ChunkContent, ChunkIdentifier, LinkedChunkId},
     locks::Mutex,
     ruma::{EventId, OwnedEventId, OwnedRoomId},
 };
@@ -588,7 +588,8 @@ async fn reload_linked_chunks(
     let event_cache_store = client.event_cache_store();
     let event_cache_store = event_cache_store.lock().await.unwrap();
 
-    let (mut next_chunk, _) = event_cache_store.load_last_chunk(room_id).await.unwrap();
+    let (mut next_chunk, _) =
+        event_cache_store.load_last_chunk(LinkedChunkId::Room(room_id)).await.unwrap();
 
     let Some(first_event_id) = first_event_id else {
         return None;
@@ -618,8 +619,10 @@ async fn reload_linked_chunks(
             }
         }
 
-        next_chunk =
-            event_cache_store.load_previous_chunk(room_id, chunk.identifier).await.unwrap();
+        next_chunk = event_cache_store
+            .load_previous_chunk(LinkedChunkId::Room(room_id), chunk.identifier)
+            .await
+            .unwrap();
     }
 
     Some(())
