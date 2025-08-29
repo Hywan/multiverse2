@@ -490,7 +490,9 @@ impl Model {
                 if matches!(self.details, Details::None) {
                     let reactions = content.reactions();
 
-                    if let Some(reactions) = reactions {
+                    if let Some(reactions) = reactions
+                        && reactions.is_empty().not()
+                    {
                         let mut line = Line::raw("");
                         let style = Style::default().bg(Color::Rgb(71, 79, 102));
 
