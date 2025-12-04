@@ -55,6 +55,8 @@ impl Model {
                     .lock()
                     .await
                     .unwrap()
+                    .as_clean()
+                    .unwrap()
                     .clear_all_linked_chunks()
                     .await
                     .unwrap();

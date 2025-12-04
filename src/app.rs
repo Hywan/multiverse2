@@ -205,7 +205,7 @@ impl Model {
                 sync_service::State::Idle => ("idle", Color::Gray),
                 sync_service::State::Running => ("running", Color::Green),
                 sync_service::State::Terminated => ("terminated", Color::Yellow),
-                sync_service::State::Error => ("ERROR", Color::Red),
+                sync_service::State::Error(_) => ("ERROR", Color::Red),
                 sync_service::State::Offline => ("offline", Color::Blue),
             };
 

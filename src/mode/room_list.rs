@@ -1,12 +1,11 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use crossterm::event::KeyEvent;
 use futures::{StreamExt, pin_mut};
-use matrix_sdk::Room;
 use matrix_sdk_ui::{
     RoomListService,
     eyeball_im::{Vector, VectorDiff},
-    room_list_service::{RoomListDynamicEntriesController, filters},
+    room_list_service::{RoomListDynamicEntriesController, RoomListItem, filters},
     sync_service::SyncService,
 };
 use ratatui::{
@@ -30,7 +29,7 @@ use crate::{
 #[derive(Debug)]
 pub enum Message {
     UpdateFilter(KeyEvent),
-    UpdateRoomList(Vec<VectorDiff<Room>>),
+    UpdateRoomList(Vec<VectorDiff<RoomListItem>>),
     MoveCursorUp,
     MoveCursorDown,
     Select,
@@ -39,7 +38,7 @@ pub enum Message {
 pub struct Model {
     room_list_controller: RoomListDynamicEntriesController,
     _room_list_updates_handle: AbortOnDrop<()>,
-    rooms: Vector<Room>,
+    rooms: Vector<RoomListItem>,
     list_state: ListState,
     search_textarea: TextArea,
     selected_room_timeline: Option<timeline::Model>,
@@ -123,7 +122,7 @@ impl Model {
                     return None;
                 };
 
-                app::Message::OpenRoom(room.clone())
+                app::Message::OpenRoom(room.deref().clone())
             }
         })
     }

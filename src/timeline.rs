@@ -457,8 +457,8 @@ impl Model {
                             TimelineItemContent::CallInvite => {
                                 spans.push(Span::styled("<call invite>", non_message_style));
                             }
-                            TimelineItemContent::CallNotify => {
-                                spans.push(Span::styled("<call notify>", non_message_style));
+                            TimelineItemContent::RtcNotification => {
+                                spans.push(Span::styled("<rtc notification>", non_message_style));
                             }
                             TimelineItemContent::FailedToParseMessageLike { .. } => {
                                 spans.push(Span::styled(
@@ -587,6 +587,7 @@ async fn reload_linked_chunks(
 
     let event_cache_store = client.event_cache_store();
     let event_cache_store = event_cache_store.lock().await.unwrap();
+    let event_cache_store = event_cache_store.as_clean().unwrap();
 
     let (mut next_chunk, _) =
         event_cache_store.load_last_chunk(LinkedChunkId::Room(room_id)).await.unwrap();
