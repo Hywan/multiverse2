@@ -404,75 +404,7 @@ impl Model {
                             spans.push(Span::styled(id, Style::default().green().bold()));
                         }
                     } else {
-                        let non_message_style = Style::default().fg(Color::Indexed(247)).italic();
-
-                        match content {
-                            TimelineItemContent::MsgLike(message_like) => {
-                                match &message_like.kind {
-                                    MsgLikeKind::Message(message) => {
-                                        spans.extend(
-                                            textwrap::wrap(message.body(), area.width as usize - 2)
-                                                .into_iter()
-                                                .map(Span::raw),
-                                        );
-                                    }
-                                    MsgLikeKind::UnableToDecrypt(_) => {
-                                        spans.push(Span::styled(
-                                            "<unable to decrypt>",
-                                            non_message_style.fg(Color::Red),
-                                        ));
-                                    }
-                                    MsgLikeKind::Redacted => {
-                                        spans.push(Span::styled("<redacted>", non_message_style));
-                                    }
-                                    MsgLikeKind::Poll(_) => {
-                                        spans.push(Span::styled("<poll>", non_message_style));
-                                    }
-                                    _ => {
-                                        spans.push(Span::styled(
-                                            "<unsupported messagge-like event>",
-                                            non_message_style,
-                                        ));
-                                    }
-                                }
-                            }
-                            TimelineItemContent::MembershipChange(membership_change) => {
-                                spans.push(Span::styled(
-                                    format!(
-                                        "<membership change `{:?}`>",
-                                        membership_change.change()
-                                    ),
-                                    non_message_style,
-                                ));
-                            }
-                            TimelineItemContent::ProfileChange(_) => {
-                                spans.push(Span::styled("<profile change>", non_message_style));
-                            }
-                            TimelineItemContent::OtherState(other_state) => {
-                                spans.push(Span::styled(
-                                    format!("<state `{}`>", other_state.content().event_type()),
-                                    non_message_style,
-                                ));
-                            }
-                            TimelineItemContent::CallInvite => {
-                                spans.push(Span::styled("<call invite>", non_message_style));
-                            }
-                            TimelineItemContent::RtcNotification => {
-                                spans.push(Span::styled("<rtc notification>", non_message_style));
-                            }
-                            TimelineItemContent::FailedToParseMessageLike { .. } => {
-                                spans.push(Span::styled(
-                                    "<failed to parse message-like>",
-                                    non_message_style.fg(Color::Red),
-                                ));
-                            }
-                            TimelineItemContent::FailedToParseState { .. } => {
-                                spans.push(Span::styled(
-                                    "<failed to parse state>",
-                                    non_message_style.fg(Color::Red),
-                                ));
-                            }
-                        }
+                        spans.extend(render_timeline_item_content(&content, &area));
                     }
 
                     let is_local_item = event_item.is_local_echo();
@@ -506,7 +438,6 @@ impl Model {
                                 style,
                             )
                         }));
-                        line.push_span(Span::styled(" ", style));
 
                         output.push_line(line);
                     }
@@ -573,6 +504,60 @@ impl Model {
                 }
             },
         }))
+    }
+}
+
+// Render a single timeline item content.
+pub(crate) fn render_timeline_item_content<'a>(
+    content: &'a TimelineItemContent,
+    area: &Rect,
+) -> Vec<Span<'a>> {
+    let non_message_style = Style::default().fg(Color::Indexed(247)).italic();
+
+    match content {
+        TimelineItemContent::MsgLike(message_like) => match &message_like.kind {
+            MsgLikeKind::Message(message) => {
+                textwrap::wrap(message.body(), area.width as usize - 2)
+                    .into_iter()
+                    .map(|c| Span::raw(c.into_owned()))
+                    .collect()
+            }
+            MsgLikeKind::UnableToDecrypt(_) => {
+                vec![Span::styled("<unable to decrypt>", non_message_style.fg(Color::Red))]
+            }
+            MsgLikeKind::Redacted => {
+                vec![Span::styled("<redacted>", non_message_style)]
+            }
+            MsgLikeKind::Poll(_) => {
+                vec![Span::styled("<poll>", non_message_style)]
+            }
+            _ => vec![Span::styled("<unsupported messagge-like event>", non_message_style)],
+        },
+        TimelineItemContent::MembershipChange(membership_change) => {
+            vec![Span::styled(
+                format!("<membership change `{:?}`>", membership_change.change()),
+                non_message_style,
+            )]
+        }
+        TimelineItemContent::ProfileChange(_) => {
+            vec![Span::styled("<profile change>", non_message_style)]
+        }
+        TimelineItemContent::OtherState(other_state) => vec![Span::styled(
+            format!("<state `{}`>", other_state.content().event_type()),
+            non_message_style,
+        )],
+        TimelineItemContent::CallInvite => {
+            vec![Span::styled("<call invite>", non_message_style)]
+        }
+        TimelineItemContent::RtcNotification => {
+            vec![Span::styled("<rtc notification>", non_message_style)]
+        }
+        TimelineItemContent::FailedToParseMessageLike { .. } => {
+            vec![Span::styled("<failed to parse message-like>", non_message_style.fg(Color::Red))]
+        }
+        TimelineItemContent::FailedToParseState { .. } => {
+            vec![Span::styled("<failed to parse state>", non_message_style.fg(Color::Red))]
+        }
     }
 }
 

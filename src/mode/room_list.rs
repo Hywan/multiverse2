@@ -1,5 +1,7 @@
 use std::{ops::Deref, sync::Arc};
 
+use as_variant::as_variant;
+use chrono::{DateTime, Local};
 use crossterm::event::KeyEvent;
 use futures::{StreamExt, pin_mut};
 use matrix_sdk_ui::{
@@ -7,11 +9,15 @@ use matrix_sdk_ui::{
     eyeball_im::{Vector, VectorDiff},
     room_list_service::{RoomListDynamicEntriesController, RoomListItem, filters},
     sync_service::SyncService,
+    timeline::{LatestEventValue, RoomExt, TimelineDetails},
 };
 use ratatui::{
     layout::{Constraint, Flex, Layout, Margin, Rect},
-    style::{Color, Style},
-    widgets::{Block, Borders, Clear, List, ListState, Paragraph, StatefulWidget, Widget},
+    style::{Color, Style, Stylize},
+    text::{Line, Span, Text},
+    widgets::{
+        Block, Borders, Clear, List, ListItem, ListState, Paragraph, StatefulWidget, Widget,
+    },
 };
 use tokio::{
     spawn,
@@ -23,7 +29,7 @@ use crate::{
     block::{BORDER_STYLE, NO_PADDING, PADDING, block_with_title},
     input::Input,
     task_ext::{AbortOnDrop, JoinHandleExt},
-    timeline,
+    timeline::{self, render_timeline_item_content},
 };
 
 #[derive(Debug)]
@@ -38,7 +44,7 @@ pub enum Message {
 pub struct Model {
     room_list_controller: RoomListDynamicEntriesController,
     _room_list_updates_handle: AbortOnDrop<()>,
-    rooms: Vector<RoomListItem>,
+    rooms: Vector<(RoomListItem, Arc<LatestEventValue>)>,
     list_state: ListState,
     search_textarea: TextArea,
     selected_room_timeline: Option<timeline::Model>,
@@ -96,6 +102,54 @@ impl Model {
             }
             Message::UpdateRoomList(diffs) => {
                 for diff in diffs {
+                    async fn map(room: RoomListItem) -> (RoomListItem, Arc<LatestEventValue>) {
+                        let latest_event_value = Arc::new(room.latest_event().await);
+
+                        (room, latest_event_value)
+                    }
+
+                    let diff = match diff {
+                        VectorDiff::Append { values } => VectorDiff::Append {
+                            values: {
+                                let mut new_values = Vector::new();
+
+                                for value in values {
+                                    new_values.push_back(map(value).await);
+                                }
+
+                                new_values
+                            },
+                        },
+                        VectorDiff::Clear => VectorDiff::Clear,
+                        VectorDiff::PushFront { value } => {
+                            VectorDiff::PushFront { value: map(value).await }
+                        }
+                        VectorDiff::PushBack { value } => {
+                            VectorDiff::PushBack { value: map(value).await }
+                        }
+                        VectorDiff::PopFront => VectorDiff::PopFront,
+                        VectorDiff::PopBack => VectorDiff::PopBack,
+                        VectorDiff::Insert { index, value } => {
+                            VectorDiff::Insert { index, value: map(value).await }
+                        }
+                        VectorDiff::Set { index, value } => {
+                            VectorDiff::Set { index, value: map(value).await }
+                        }
+                        VectorDiff::Remove { index } => VectorDiff::Remove { index },
+                        VectorDiff::Truncate { length } => VectorDiff::Truncate { length },
+                        VectorDiff::Reset { values } => VectorDiff::Reset {
+                            values: {
+                                let mut new_values = Vector::new();
+
+                                for value in values {
+                                    new_values.push_back(map(value).await);
+                                }
+
+                                new_values
+                            },
+                        },
+                    };
+
                     diff.apply(&mut self.rooms);
                 }
 
@@ -118,7 +172,8 @@ impl Model {
                 return None;
             }
             Message::Select => {
-                let Some(room) = self.rooms.get(self.list_state.selected().unwrap_or(0)) else {
+                let Some((room, _)) = self.rooms.get(self.list_state.selected().unwrap_or(0))
+                else {
                     return None;
                 };
 
@@ -130,7 +185,7 @@ impl Model {
     pub async fn update_selected_room_timeline(&mut self) {
         self.selected_room_timeline = match self.rooms.get(self.list_state.selected().unwrap_or(0))
         {
-            Some(room) => Some(timeline::Model::new(room, None).await),
+            Some((room, _)) => Some(timeline::Model::new(room, None).await),
             None => None,
         };
     }
@@ -161,11 +216,77 @@ impl Model {
         list_block.render(list_area, buffer);
 
         self.search_textarea.render(input_area.inner(Margin::new(1, 0)), buffer);
+        const HIGHLIGHT_SYMBOL: &str = " > ";
         StatefulWidget::render(
-            List::new(self.rooms.iter().map(|room| {
-                room.cached_display_name()
-                    .map(|display_name| display_name.to_string())
-                    .unwrap_or_else(|| room.room_id().as_str().to_owned())
+            List::new(self.rooms.iter().map(|(room, latest_event)| {
+                ListItem::new({
+                    let mut output = Text::default();
+
+                    output.push_line(Line::default().spans({
+                        let room_name = room
+                            .cached_display_name()
+                            .map(|display_name| display_name.to_string())
+                            .unwrap_or_else(|| room.room_id().as_str().to_owned());
+
+                        let spaces = str::repeat(
+                            " ",
+                            usize::from(table_area.width)
+                                .saturating_sub(room_name.len())
+                                .saturating_sub(HIGHLIGHT_SYMBOL.len())
+                                .saturating_sub(
+                                    1 /* borders */
+                                        + usize::from(PADDING.left)
+                                        + usize::from(PADDING.right),
+                                )
+                                .saturating_sub(5),
+                        );
+
+                        let time = match latest_event.deref() {
+                            LatestEventValue::None => Span::raw("???"),
+                            LatestEventValue::Remote { timestamp, .. }
+                            | LatestEventValue::Local { timestamp, .. } => Span::raw(
+                                DateTime::<Local>::from(
+                                    timestamp.to_system_time().expect("invalid system time"),
+                                )
+                                .format("%H:%M")
+                                .to_string(),
+                            ),
+                        };
+
+                        [room_name.bold(), spaces.into(), time]
+                    }));
+
+                    output.push_line(Line::default().spans({
+                        let (sender, decoration, content) = match latest_event.deref() {
+                            LatestEventValue::None => {
+                                (Span::raw(""), "".into(), Span::raw("<none>"))
+                            }
+                            LatestEventValue::Remote { sender, profile, content, .. } => {
+                                let mut sender = as_variant!(profile, TimelineDetails::Ready(profile) => profile)
+                                    .and_then(|profile| profile.display_name.clone())
+                                    .unwrap_or_else(|| sender.localpart().to_owned());
+                                sender.push_str(": ");
+
+                                let content = render_timeline_item_content(content, &area).swap_remove(0);
+
+                                (sender.into(), "".into(), content)
+                            }
+                            LatestEventValue::Local { is_sending, content, .. } => {
+                                let content = render_timeline_item_content(content, &area).swap_remove(0);
+
+                                (
+                                    Span::raw("Me: "),
+                                    Span::raw(if *is_sending { "🕙 " } else { "❗️ " }),
+                                    content.into(),
+                                )
+                            }
+                        };
+
+                        [decoration, sender, content]
+                    }));
+
+                    output
+                })
             }))
             .highlight_style(Style::new().bg(Color::DarkGray))
             .highlight_symbol(" > ")
