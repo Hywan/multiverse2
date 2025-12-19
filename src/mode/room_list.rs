@@ -9,7 +9,7 @@ use matrix_sdk_ui::{
     eyeball_im::{Vector, VectorDiff},
     room_list_service::{RoomListDynamicEntriesController, RoomListItem, filters},
     sync_service::SyncService,
-    timeline::{LatestEventValue, RoomExt, TimelineDetails},
+    timeline::{LatestEventValue, LatestEventValueLocalState, RoomExt, TimelineDetails},
 };
 use ratatui::{
     layout::{Constraint, Flex, Layout, Margin, Rect},
@@ -271,18 +271,22 @@ impl Model {
 
                                 (sender.into(), "".into(), content)
                             }
-                            LatestEventValue::Local { is_sending, content, .. } => {
+                            LatestEventValue::Local { state, content, .. } => {
                                 let content = render_timeline_item_content(content, &area).swap_remove(0);
 
                                 (
                                     Span::raw("Me: "),
-                                    Span::raw(if *is_sending { "🕙 " } else { "❗️ " }),
+                                    Span::raw(match state {
+                                        LatestEventValueLocalState::IsSending => "🕙 ",
+                                        LatestEventValueLocalState::CannotBeSent => "❗️ ",
+                                        LatestEventValueLocalState::HasBeenSent => "",
+                                    }),
                                     content.into(),
                                 )
                             }
                         };
 
-                        [decoration, sender, content]
+                        [decoration, sender, content.italic()]
                     }));
 
                     output
