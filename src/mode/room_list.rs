@@ -244,6 +244,7 @@ impl Model {
                         let time = match latest_event.deref() {
                             LatestEventValue::None => Span::raw("???"),
                             LatestEventValue::Remote { timestamp, .. }
+                            | LatestEventValue::RemoteInvite { timestamp, .. }
                             | LatestEventValue::Local { timestamp, .. } => Span::raw(
                                 DateTime::<Local>::from(
                                     timestamp.to_system_time().expect("invalid system time"),
@@ -270,6 +271,18 @@ impl Model {
                                 let content = render_timeline_item_content(content, &area).swap_remove(0);
 
                                 (sender.into(), "".into(), content)
+                            }
+                            LatestEventValue::RemoteInvite { inviter, inviter_profile, .. } => {
+                                let mut sender = as_variant!(inviter_profile, TimelineDetails::Ready(profile) => profile)
+                                    .and_then(|profile| profile.display_name.clone())
+                                    .unwrap_or_else(|| inviter.as_ref().map(|inviter| inviter.localpart().to_owned()).unwrap_or_else(|| "<unknow>".to_string()));
+                                sender.push_str(": ");
+
+                                (
+                                    Span::raw(sender),
+                                    "📩".into(),
+                                    Span::raw("<invite>"),
+                                )
                             }
                             LatestEventValue::Local { state, content, .. } => {
                                 let content = render_timeline_item_content(content, &area).swap_remove(0);
