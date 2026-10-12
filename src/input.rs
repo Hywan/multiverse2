@@ -125,7 +125,6 @@ fn map_key_event_to_message(key_event: KeyEvent, app_model: &app::Model) -> Opti
                     timeline::Details::LinkedChunk,
                 )),
                 KeyCode::Char('m') => room::Message::MarkAsRead,
-                KeyCode::Char('c') => room::Message::EmptyEventCache,
                 _ => return None,
             }),
 

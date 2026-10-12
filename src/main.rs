@@ -17,6 +17,7 @@ use matrix_sdk::{
     AuthSession, Client, ClientBuildError, SqliteCryptoStore, SqliteEventCacheStore,
     SqliteStateStore,
     authentication::matrix::MatrixSession,
+    cross_process_lock::CrossProcessLockConfig,
     encryption::{BackupDownloadStrategy, EncryptionSettings},
     ruma::exports::serde_json,
     store::StoreConfig,
@@ -53,9 +54,6 @@ async fn main() -> Result<(), Error> {
     let client = client(&options).await?;
     let client = session(client, &options).await?;
 
-    let event_cache = client.event_cache();
-    event_cache.subscribe().unwrap();
-
     app(client).await?;
 
     Ok(())
@@ -73,12 +71,14 @@ async fn client(options: &bin::Options) -> Result<Client, Error> {
 
     let client_builder = Client::builder()
         .store_config(
-            StoreConfig::new("multiverse".to_owned())
-                .crypto_store(SqliteCryptoStore::open(session_path.join("crypto"), None).await?)
-                .state_store(SqliteStateStore::open(session_path.join("state"), None).await?)
-                .event_cache_store(
-                    SqliteEventCacheStore::open(session_path.join("cache"), None).await?,
-                ),
+            StoreConfig::new(CrossProcessLockConfig::MultiProcess {
+                holder_name: "multiverse".to_owned(),
+            })
+            .crypto_store(SqliteCryptoStore::open(session_path.join("crypto"), None).await?)
+            .state_store(SqliteStateStore::open(session_path.join("state"), None).await?)
+            .event_cache_store(
+                SqliteEventCacheStore::open(session_path.join("cache"), None).await?,
+            ),
         )
         .server_name_or_homeserver_url(&server_name)
         .with_encryption_settings(EncryptionSettings {

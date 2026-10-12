@@ -50,16 +50,7 @@ impl Model {
                 app::Message::Mode(app::Mode::None)
             }
             Message::EmptyEventCache => {
-                self.client
-                    .event_cache_store()
-                    .lock()
-                    .await
-                    .unwrap()
-                    .as_clean()
-                    .unwrap()
-                    .clear_all_linked_chunks()
-                    .await
-                    .unwrap();
+                self.client.event_cache().clear_all_rooms().await.unwrap();
                 app::Message::Mode(app::Mode::None)
             }
             Message::OpenLogger => app::Message::Mode(app::Mode::Logger(mode::logger::Model::new(

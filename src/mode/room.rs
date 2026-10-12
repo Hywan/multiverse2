@@ -27,7 +27,6 @@ impl Model {
             Row::new([Cell::new("o"), Cell::new("View event origin")]),
             Row::new([Cell::new("l"), Cell::new("View linked chunk")]),
             Row::new([Cell::new("m"), Cell::new("Mark as read")]),
-            Row::new([Cell::new("c"), Cell::new("Empty room event cache")]),
         ];
 
         let [_, area] = Layout::vertical([
@@ -36,7 +35,7 @@ impl Model {
         ])
         .areas(area);
         let [_, area] =
-            Layout::horizontal([Constraint::Percentage(100), Constraint::Min(39)]).areas(area);
+            Layout::horizontal([Constraint::Percentage(100), Constraint::Min(38)]).areas(area);
 
         Clear.render(area, buffer);
 

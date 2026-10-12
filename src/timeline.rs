@@ -8,7 +8,7 @@ use matrix_sdk::{
     deserialized_responses::TimelineEvent,
     linked_chunk::{ChunkContent, ChunkIdentifier, LinkedChunkId},
     locks::Mutex,
-    ruma::{EventId, OwnedEventId, OwnedRoomId},
+    ruma::{EventId, OwnedRoomId},
 };
 use matrix_sdk_ui::{
     Timeline,
@@ -420,9 +420,9 @@ impl Model {
 
                 // Reactions.
                 if matches!(self.details, Details::None) {
-                    let reactions = content.reactions();
+                    let reactions = event_item.reactions();
 
-                    if let Some(reactions) = reactions {
+                    if reactions.is_empty().not() {
                         let mut line = Line::raw("");
                         let style = Style::default().bg(Color::Rgb(71, 79, 102));
 
@@ -549,7 +549,7 @@ pub(crate) fn render_timeline_item_content<'a>(
         TimelineItemContent::CallInvite => {
             vec![Span::styled("<call invite>", non_message_style)]
         }
-        TimelineItemContent::RtcNotification => {
+        TimelineItemContent::RtcNotification { .. } => {
             vec![Span::styled("<rtc notification>", non_message_style)]
         }
         TimelineItemContent::FailedToParseMessageLike { .. } => {
@@ -589,7 +589,7 @@ async fn reload_linked_chunks(
                 if events
                     .iter()
                     .filter_map(|event| event.event_id())
-                    .any(|event_id| &event_id == first_event_id)
+                    .any(|event_id| event_id == first_event_id)
                 {
                     do_break = true;
                 }
@@ -601,7 +601,7 @@ async fn reload_linked_chunks(
                 }
             }
             ChunkContent::Gap(gap) => {
-                linked_chunks.push((chunk.identifier, ChunkContent::Gap(gap.prev_token)));
+                linked_chunks.push((chunk.identifier, ChunkContent::Gap(gap.token)));
             }
         }
 
@@ -661,7 +661,7 @@ fn update_scroll_position_for_linked_chunk(scroll: &Scroll, scroll_position: usi
     }
 }
 
-fn format_event_id(event_id: OwnedEventId) -> String {
+fn format_event_id(event_id: &EventId) -> String {
     let event_id = event_id.as_str();
 
     if event_id.len() > 8 {

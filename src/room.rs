@@ -22,7 +22,6 @@ pub enum Message {
     SendMessage,
     Timeline(timeline::Message),
     MarkAsRead,
-    EmptyEventCache,
 }
 
 pub struct Model {
@@ -69,13 +68,6 @@ impl Model {
             }
             Message::MarkAsRead => {
                 self.timeline.timeline.mark_as_read(ReceiptType::Read).await.unwrap();
-            }
-            Message::EmptyEventCache => {
-                if let Ok((room_event_cache, _event_cache_drop_handle)) =
-                    self.room.event_cache().await
-                {
-                    room_event_cache.clear().await.unwrap();
-                }
             }
         }
 

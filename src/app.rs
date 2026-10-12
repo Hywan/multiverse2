@@ -73,7 +73,10 @@ impl Model {
             Message::Quit => self.exit = true,
             Message::OpenRoom(room) => {
                 self.mode = Mode::None;
-                self.sync_service.room_list_service().subscribe_to_rooms(&[room.room_id()]).await;
+                self.sync_service
+                    .room_list_service()
+                    .set_room_subscriptions(&[room.room_id()])
+                    .await;
                 self.room = Some(room::Model::new(room, self.input_sender.clone()).await);
             }
             Message::Room(room_message) => {
@@ -253,7 +256,8 @@ impl App {
             let mut next_message =
                 input::map_input_to_message(&mut self.input_receiver, &self.model).await;
 
-            // Process the `Message` and the subsequent `Message`s if any are chained.
+            // Process the `Message` and the subsequent `Message`s if any are
+            // chained.
             while let Some(message) = next_message {
                 next_message = self.model.update(message).await;
             }
