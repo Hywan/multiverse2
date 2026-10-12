@@ -1,7 +1,7 @@
-use std::{borrow::Cow, cmp::min, iter, ops::Not, sync::Arc};
+use std::{borrow::Cow, cmp::min, iter, ops::Not, pin::pin, sync::Arc};
 
 use chrono::{DateTime, Local};
-use futures::{StreamExt, pin_mut};
+use futures::StreamExt;
 use itertools::Itertools as _;
 use matrix_sdk::{
     Client, Room,
@@ -621,7 +621,7 @@ async fn items_updates_task(timeline: Arc<Timeline>, input_sender: Sender<Input>
         .send(Input::TimelineUpdate(vec![VectorDiff::Reset { values: initial_items }]))
         .await;
 
-    pin_mut!(items_stream);
+    let mut items_stream = pin!(items_stream);
 
     while let Some(diffs) = items_stream.next().await {
         let _ = input_sender.send(Input::TimelineUpdate(diffs)).await;

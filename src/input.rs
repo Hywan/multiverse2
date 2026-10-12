@@ -58,22 +58,22 @@ fn map_key_event_to_message(key_event: KeyEvent, app_model: &app::Model) -> Opti
     let mode = &app_model.mode;
 
     Some(match key_event.code {
-        KeyCode::Esc => app::Message::Mode(app::Mode::None),
+        KeyCode::Esc => app::Message::SetMode(app::Mode::None),
 
         code => match mode {
             app::Mode::None => match code {
                 KeyCode::Char('q') => app::Message::Quit,
                 KeyCode::Char(' ') => {
-                    app::Message::Mode(app::Mode::Space(mode::space::Model::new(
+                    app::Message::SetMode(app::Mode::Space(mode::space::Model::new(
                         app_model.client.clone(),
                         app_model.sync_service.clone(),
                         app_model.input_sender.clone(),
                     )))
                 }
-                KeyCode::Char('r') => app::Message::Mode(app::Mode::Room(mode::room::Model::new(
+                KeyCode::Char('r') => app::Message::SetMode(app::Mode::Room(mode::room::Model::new(
                     app_model.room.is_some(),
                 ))),
-                KeyCode::Char('i') => app::Message::Mode(app::Mode::Insert),
+                KeyCode::Char('i') => app::Message::SetMode(app::Mode::Insert),
                 KeyCode::Up => app::Message::Room(room::Message::Timeline(
                     timeline::Message::Scroll(timeline::Scroll::Up),
                 )),

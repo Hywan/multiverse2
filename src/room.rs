@@ -71,7 +71,7 @@ impl Model {
             }
         }
 
-        Some(app::Message::Mode(app::Mode::None))
+        Some(app::Message::SetMode(app::Mode::None))
     }
 
     pub fn render(&self, area: Rect, buffer: &mut Buffer) {

@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{pin::pin, sync::Arc};
 
-use futures::{Stream, StreamExt, pin_mut};
+use futures::{Stream, StreamExt};
 use matrix_sdk::{Client, Room};
 use matrix_sdk_ui::sync_service::{self, SyncService};
 use ratatui::{
@@ -27,7 +27,7 @@ pub enum Message {
     Quit,
     OpenRoom(Room),
     Room(room::Message),
-    Mode(Mode),
+    SetMode(Mode),
     Space(mode::space::Message),
     RoomList(mode::room_list::Message),
     Logger(mode::logger::Message),
@@ -84,7 +84,7 @@ impl Model {
                     return room_model.update(room_message).await;
                 }
             }
-            Message::Mode(mode) => self.mode = mode,
+            Message::SetMode(mode) => self.mode = mode,
             Message::Space(space_message) => {
                 if let Mode::Space(space_model) = &mut self.mode {
                     return space_model.update(space_message).await;
@@ -273,7 +273,7 @@ async fn handle_sync_service_states_task(
     input_sender: Sender<Input>,
     state_receiver: impl Stream<Item = sync_service::State>,
 ) {
-    pin_mut!(state_receiver);
+    let mut state_receiver = pin!(state_receiver);
 
     while let Some(_state) = state_receiver.next().await {
         let _ = input_sender.send(Input::Redraw).await;

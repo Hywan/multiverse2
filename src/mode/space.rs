@@ -37,25 +37,25 @@ impl Model {
 
     pub async fn update(&mut self, message: Message) -> Option<app::Message> {
         Some(match message {
-            Message::OpenRoomList => app::Message::Mode(app::Mode::RoomList(
+            Message::OpenRoomList => app::Message::SetMode(app::Mode::RoomList(
                 mode::room_list::Model::new(self.sync_service.clone(), self.input_sender.clone())
                     .await,
             )),
             Message::StartSyncService => {
                 self.sync_service.start().await;
-                app::Message::Mode(app::Mode::None)
+                app::Message::SetMode(app::Mode::None)
             }
             Message::StopSyncService => {
                 self.sync_service.stop().await;
-                app::Message::Mode(app::Mode::None)
+                app::Message::SetMode(app::Mode::None)
             }
             Message::EmptyEventCache => {
                 self.client.event_cache().clear_all_rooms().await.unwrap();
-                app::Message::Mode(app::Mode::None)
+                app::Message::SetMode(app::Mode::None)
             }
-            Message::OpenLogger => app::Message::Mode(app::Mode::Logger(mode::logger::Model::new(
-                self.input_sender.clone(),
-            ))),
+            Message::OpenLogger => app::Message::SetMode(app::Mode::Logger(
+                mode::logger::Model::new(self.input_sender.clone()),
+            )),
         })
     }
 

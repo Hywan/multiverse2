@@ -1,9 +1,9 @@
-use std::{ops::Deref, sync::Arc};
+use std::{ops::Deref, pin::pin, sync::Arc};
 
 use as_variant::as_variant;
 use chrono::{DateTime, Local};
 use crossterm::event::KeyEvent;
-use futures::{StreamExt, pin_mut};
+use futures::StreamExt;
 use matrix_sdk_ui::{
     RoomListService,
     eyeball_im::{Vector, VectorDiff},
@@ -64,7 +64,6 @@ impl Model {
         .abort_on_drop();
 
         let room_list_controller = room_list_controller_receiver.await.unwrap();
-
         room_list_controller.set_filter(Box::new(filters::new_filter_non_left()));
 
         Self {
@@ -76,9 +75,7 @@ impl Model {
             selected_room_timeline: None,
         }
     }
-}
 
-impl Model {
     pub async fn update(&mut self, message: Message) -> Option<app::Message> {
         Some(match message {
             Message::UpdateFilter(key_event) => {
@@ -332,12 +329,13 @@ async fn room_list_updates_task(
     input_sender: Sender<Input>,
 ) {
     let all_rooms = room_list_service.all_rooms().await.unwrap();
+
     let (rooms_stream, room_list_controller) =
         all_rooms.entries_with_dynamic_adapters(u16::MAX as usize);
 
     let _ = room_list_controller_sender.send(room_list_controller);
 
-    pin_mut!(rooms_stream);
+    let mut rooms_stream = pin!(rooms_stream);
 
     while let Some(diffs) = rooms_stream.next().await {
         let _ = input_sender.send(Input::RoomListUpdate(diffs)).await;
