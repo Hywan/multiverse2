@@ -21,7 +21,7 @@ use ratatui::{
 };
 use tokio::{
     spawn,
-    sync::{mpsc::Sender, oneshot},
+    sync::{Mutex, OwnedMutexGuard, mpsc::Sender},
 };
 
 use crate::{
@@ -54,16 +54,16 @@ impl Model {
     pub async fn new(sync_service: Arc<SyncService>, input_sender: Sender<Input>) -> Self {
         let room_list_service = sync_service.room_list_service();
 
-        let (room_list_controller_sender, room_list_controller_receiver) = oneshot::channel();
+        let room_list_controller = Arc::new(Mutex::new(None));
 
         let _room_list_updates_handle = spawn(room_list_updates_task(
-            room_list_service.clone(),
-            room_list_controller_sender,
+            room_list_service,
+            room_list_controller.clone().lock_owned().await,
             input_sender,
         ))
         .abort_on_drop();
 
-        let room_list_controller = room_list_controller_receiver.await.unwrap();
+        let room_list_controller = room_list_controller.lock().await.take().unwrap();
         room_list_controller.set_filter(Box::new(filters::new_filter_non_left()));
 
         Self {
@@ -325,7 +325,7 @@ impl Model {
 
 async fn room_list_updates_task(
     room_list_service: Arc<RoomListService>,
-    room_list_controller_sender: oneshot::Sender<RoomListDynamicEntriesController>,
+    mut room_list_controller_guard: OwnedMutexGuard<Option<RoomListDynamicEntriesController>>,
     input_sender: Sender<Input>,
 ) {
     let all_rooms = room_list_service.all_rooms().await.unwrap();
@@ -333,7 +333,8 @@ async fn room_list_updates_task(
     let (rooms_stream, room_list_controller) =
         all_rooms.entries_with_dynamic_adapters(u16::MAX as usize);
 
-    let _ = room_list_controller_sender.send(room_list_controller);
+    room_list_controller_guard.replace(room_list_controller);
+    drop(room_list_controller_guard);
 
     let mut rooms_stream = pin!(rooms_stream);
 
